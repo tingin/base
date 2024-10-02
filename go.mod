@@ -1,4 +1,4 @@
-module base
+module github.com/tingin/base
 
 go 1.23.2
 
