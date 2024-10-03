@@ -10,6 +10,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+type HttpHeader struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 var client = &fasthttp.Client{
 	MaxConnsPerHost:     100,
 	MaxIdleConnDuration: 100 * time.Second,
@@ -29,17 +34,27 @@ func ReInit(maxConnsPerHost int) {
 	}
 }
 
-func Post(url string, body any, response any) error {
-	result, err := json.Marshal(body)
+func PostWithHeader(url string, headers []HttpHeader, params any, response any) error {
+
+	body, err := json.Marshal(params)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return fmt.Errorf("failed to marshal params: %w", err)
 	}
 
 	req := fasthttp.AcquireRequest()
 	defer fasthttp.ReleaseRequest(req)
+
 	req.Header.SetMethod("POST")
 	req.SetRequestURI(url)
-	req.SetBody(result)
+
+	req.SetBody(body)
+
+	if headers != nil {
+		for _, header := range headers {
+			req.Header.Set(header.Key, header.Value)
+		}
+	}
+
 	req.Header.SetContentType("application/json")
 
 	resp := fasthttp.AcquireResponse()
@@ -49,8 +64,37 @@ func Post(url string, body any, response any) error {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	if err := json.Unmarshal(resp.Body(), &response); err != nil {
-		return fmt.Errorf("failed to unmarshal response body: %w", err)
+	body = resp.Body()
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return nil
+}
+
+func Post(url string, params any, response any) error {
+	return PostWithHeader(url, nil, params, response)
+}
+
+func Get(url string, response any) error {
+	req := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(req)
+
+	req.Header.SetMethod("GET")
+	req.SetRequestURI(url)
+
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
+
+	if err := client.Do(req, resp); err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	body := resp.Body()
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return nil
