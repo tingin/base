@@ -94,7 +94,7 @@ func Get(url string, response any) error {
 	body := resp.Body()
 
 	if err := json.Unmarshal(body, &response); err != nil {
-		return fmt.Errorf("failed to unmarshal response: %w", err)
+		return fmt.Errorf("failed to unmarshal response: %w body: %s", err, body)
 	}
 
 	return nil
