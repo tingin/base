@@ -102,10 +102,18 @@ type Logger struct {
 	slogger *slog.Logger
 }
 
-func (l Logger) Info(msg string, attrs ...slog.Attr) {
+func (l Logger) InfoJson(msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(context.Background(), slog.LevelInfo, msg, attrs...)
 }
 
-func (l Logger) Error(msg string, attrs ...slog.Attr) {
+func (l Logger) ErrorJson(msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(context.Background(), slog.LevelError, msg, attrs...)
+}
+
+func (l Logger) Info(msg string, args ...any) {
+	l.slogger.Info(msg, args...)
+}
+
+func (l Logger) Error(msg string, args ...any) {
+	l.slogger.Error(msg, args...)
 }
