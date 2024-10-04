@@ -19,6 +19,12 @@ func (s *SingletonMap[K, V]) AddFactory(key K, factory func() *V) {
 	s.factories.Store(key, factory)
 }
 
+func (s *SingletonMap[K, V]) Remove(key K) {
+	s.factories.Delete(key)
+	s.instances.Delete(key)
+	s.onceMap.Delete(key)
+}
+
 func (s *SingletonMap[K, V]) GetInstance(key K) *V {
 	once, _ := s.onceMap.LoadOrStore(key, &sync.Once{})
 	once.(*sync.Once).Do(func() {
