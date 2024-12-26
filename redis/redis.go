@@ -2,11 +2,11 @@ package redis
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
 	"github.com/tingin/base/config"
+	"github.com/tingin/base/env"
 	"github.com/tingin/base/patterns/singleton"
 )
 
@@ -18,15 +18,25 @@ func init() {
 	singletonMap.AddFactory(defaultKey, defaultInstance)
 }
 
+type Redis string
+
+const (
+	Addr         Redis = "Addr"
+	PassWord     Redis = "PassWord"
+	DB           Redis = "DB"
+	PoolSize     Redis = "PoolSize"
+	MinIdleConns Redis = "MinIdleConns"
+	TimeOut      Redis = "TimeOut"
+)
+
 func defaultInstance() *RedisClient {
-	addr := config.GetEnv("RedisAddr", "127.0.0.1:6379")
-	password := config.GetEnv("RedisPasswd", "")
-	dbcfg := config.GetEnv("Redisdb", "")
-	db, err := strconv.Atoi(dbcfg)
-	if err != nil {
-		db = 0
-	}
-	return NewRedisClient(addr, password, db)
+	addr := config.GetEnv(string(Addr), "127.0.0.1:6379")
+	password := config.GetEnv(string(PassWord), "")
+	db := env.GetEnvAsInt(string(DB), 0)
+	poolsize := env.GetEnvAsInt(string(PoolSize), 10)
+	minIdleConns := env.GetEnvAsInt(string(MinIdleConns), 10)
+	timeout := env.GetEnvAsInt(string(TimeOut), 30)
+	return NewRedisClient(addr, password, db, poolsize, minIdleConns, timeout)
 }
 
 func Default() *RedisClient {
@@ -38,11 +48,14 @@ type RedisClient struct {
 	Ctx    context.Context
 }
 
-func NewRedisClient(addr string, password string, db int) *RedisClient {
+func NewRedisClient(addr string, password string, db int, poolsize int, minIdleConns int, timeout int) *RedisClient {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       db,
+		Addr:         addr,
+		Password:     password,
+		DB:           db,
+		PoolSize:     poolsize,
+		MinIdleConns: minIdleConns,
+		PoolTimeout:  time.Duration(timeout) * time.Second,
 	})
 
 	return &RedisClient{
