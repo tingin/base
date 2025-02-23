@@ -1,7 +1,6 @@
 package log
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/donnie4w/go-logger/logger"
 	"github.com/tingin/base/patterns/singleton"
-	"modernc.org/libc/sys/types"
 )
 
 func formatTime(a slog.Attr) slog.Attr {
@@ -33,9 +31,7 @@ var singletonMap = singleton.NewSingletonMap[string, Logger]()
 
 var defaultKey = "Default"
 
-var type = "json"
-
-func AddFactory(key string, factory func() *Logger) {
+func AddFactory(key string, factory *Logger) {
 	singletonMap.AddFactory(key, factory)
 }
 
@@ -47,16 +43,31 @@ func Get(key string) *Logger {
 	return singletonMap.GetInstance(key)
 }
 
-func defaultInstance() *Logger {
+func defaultInstance(o Options) *Logger {
 	options := Options{
 		Filename:   "log/log.log",
 		MaxBackup:  365,
 		IsCompress: false,
+		Json:       true,
+		Source:     false,
 	}
+	if o.Filename != "" {
+		options.Filename = o.Filename
+	}
+	if o.MaxBackup != 0 {
+		options.MaxBackup = o.MaxBackup
+	}
+
+	options.IsCompress = o.IsCompress
+	options.Json = o.Json
+	options.Source = o.Source
+
 	return NewLogger(options)
 }
 
 type Options struct {
+	Json       bool
+	Source     bool
 	Filename   string
 	MaxBackup  int
 	IsCompress bool
@@ -72,47 +83,40 @@ func NewLogger(options Options) *Logger {
 		},
 	},
 	)
-	if (types == "json"){
-		slogger := slog.New(slog.NewJSONHandler(loggingFile, &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelInfo,
-			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-				switch a.Key {
-				case slog.TimeKey:
-					return formatTime(a)
-				case slog.SourceKey:
-					return formatSource(a)
-				default:
-					return a
-				}
-			},
-		}))	
-	}else{
-		slogger := slog.New(&slog.TextHandler(loggingFile, &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelInfo,
-			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
-				switch a.Key {
-				case slog.TimeKey:
-					return formatTime(a)
-				case slog.SourceKey:
-					return formatSource(a)
-				default:
-					return a
-				}
-			},
-		}))	
+
+	var log *slog.Logger
+
+	option := &slog.HandlerOptions{
+		AddSource: options.Source,
+		Level:     slog.LevelInfo,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			switch a.Key {
+			case slog.TimeKey:
+				return formatTime(a)
+			case slog.SourceKey:
+				return formatSource(a)
+			default:
+				return a
+			}
+		},
 	}
-	
+
+	if options.Json {
+		log = slog.New(slog.NewJSONHandler(loggingFile, option))
+	} else {
+		log = slog.New(slog.NewTextHandler(loggingFile, option))
+	}
+
 	return &Logger{
-		slogger: slogger.With("PID", os.Getpid()),
+		slogger: log.With("PID", os.Getpid()),
 	}
 }
 
-func Default() *Logger {
+func Default(opt Options) *Logger {
 	o := singletonMap.GetInstance(defaultKey)
 	if o == nil {
-		AddFactory(defaultKey, defaultInstance)
+		o = defaultInstance(opt)
+		AddFactory(defaultKey, o)
 	}
 	return singletonMap.GetInstance(defaultKey)
 }
@@ -122,19 +126,19 @@ type Logger struct {
 }
 
 func (l Logger) Info(msg string, args ...any) {
-	if types=="json"{
-		l.slogger.LogAttrs(context.Background(), slog.LevelInfo, msg, attrs...)
-	}else{
-		l.slogger.Info(msg, args...)
-	}
-	
+	l.slogger.Info(msg, args...)
+}
+
+func (l Logger) Infof(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.slogger.Info(msg)
 }
 
 func (l Logger) Error(msg string, args ...any) {
-	if types=="json"{
-		l.slogger.LogAttrs(context.Background(), slog.LevelError, msg, attrs...)
-		}else{
-			l.slogger.Error(msg, args...)
-		}
-	
+	l.slogger.Error(msg, args...)
+}
+
+func (l Logger) Errorf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	l.slogger.Error(msg)
 }
